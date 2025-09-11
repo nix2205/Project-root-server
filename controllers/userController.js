@@ -7,7 +7,7 @@ const resetPassword = async (req, res) => {
     const username = req.user.username; // from verifyToken middleware
     const { newPassword } = req.body;
 
-    if (!newPassword || newPassword.length < 6) {
+    if (!newPassword) {
       return res.status(400).json({ message: "Password must be at least 6 characters" });
     }
 
@@ -76,8 +76,6 @@ const editExpenseIsSpecial = async (req, res) => {
 };
 
 // POST /api/user/add-expense
-// Auto-flags specials: if another expense exists on the same date,
-// this new one becomes isSpecial = true, and all existing same-date expenses are marked isSpecial = true.
 const addExpense = async (req, res) => {
   try {
     const username = req.user.username;
