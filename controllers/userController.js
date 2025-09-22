@@ -144,18 +144,47 @@ const addExpense = async (req, res) => {
 };
 
 // GET /api/user/expenses
+// const getMyExpenses = async (req, res) => {
+//   try {
+//     const username = req.user.username;
+//     const user = await User.findOne({ username });
+//     if (!user) return res.status(404).json({ message: "User not found" });
+
+//     res.json(user.expenses || []);
+//   } catch (err) {
+//     console.error("Error in getMyExpenses:", err);
+//     res.status(500).json({ message: "Server error" });
+//   }
+// };
+
+
+
+// GET /api/user/expenses?month=9&year=2025
 const getMyExpenses = async (req, res) => {
   try {
     const username = req.user.username;
+    const { month, year } = req.query;
+
     const user = await User.findOne({ username });
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    res.json(user.expenses || []);
+    let expenses = user.expenses || [];
+
+    if (month && year) {
+      expenses = expenses.filter((exp) => {
+        if (!exp.date) return false;
+        const [day, mon, yr] = exp.date.split("/").map(Number);
+        return mon === Number(month) && yr === Number(year);
+      });
+    }
+
+    res.json(expenses);
   } catch (err) {
     console.error("Error in getMyExpenses:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
+
 
 module.exports = {
   getUserInfo,

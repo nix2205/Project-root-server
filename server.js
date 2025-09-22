@@ -8,6 +8,8 @@ const adminRoutes = require("./routes/adminRoutes");
 
 const app = express();
 const userRoutes = require("./routes/userRoutes");
+const cityZoneRoutes = require("./routes/cityZoneRoutes");
+
 
 app.use(cors());
 app.use(express.json());
@@ -15,6 +17,8 @@ app.use(express.json());
 app.use("/api/auth", authRoutes);
 app.use("/api/admin", adminRoutes);
 app.use("/api/user", userRoutes);
+app.use("/api/city-zones", cityZoneRoutes);
+
 
 mongoose
   .connect(process.env.MONGO_URI)

@@ -166,27 +166,83 @@ const editUser = async (req, res) => {
 };
 
 // Get normal expenses
+// const getNormalExpenses = async (req, res) => {
+//   try {
+//     const user = await User.findOne({ username: req.params.username });
+//     if (!user) return res.status(404).json({ error: "User not found" });
+//     res.json(user.expenses || []);
+//   } catch (err) {
+//     console.error("Get normal expenses error:", err);
+//     res.status(500).json({ error: "Failed to fetch normal expenses" });
+//   }
+// };
+
+
+// Get normal expenses (with optional month/year filter)
 const getNormalExpenses = async (req, res) => {
   try {
-    const user = await User.findOne({ username: req.params.username });
+    const { username } = req.params;
+    const { month, year } = req.query; // e.g., /expenses/john?month=9&year=2025
+
+    const user = await User.findOne({ username });
     if (!user) return res.status(404).json({ error: "User not found" });
-    res.json(user.expenses || []);
+
+    let expenses = user.expenses || [];
+
+    // ✅ Filter by month & year if provided
+    if (month && year) {
+      expenses = expenses.filter((exp) => {
+        if (!exp.date) return false;
+        // date format = DD/MM/YYYY
+        const [day, mon, yr] = exp.date.split("/").map(Number);
+        return mon === Number(month) && yr === Number(year);
+      });
+    }
+
+    res.json(expenses);
   } catch (err) {
     console.error("Get normal expenses error:", err);
     res.status(500).json({ error: "Failed to fetch normal expenses" });
   }
 };
 
+
 // Get Other Expenses
+// const getOtherExpenses = async (req, res) => {
+//   try {
+//     const otherExpenses = await OtherExpense.find({ username: req.params.username });
+//     res.json(otherExpenses);
+//   } catch (err) {
+//     console.error("Get other expenses error:", err);
+//     res.status(500).json({ error: "Failed to fetch other expenses" });
+//   }
+// };
+
+
 const getOtherExpenses = async (req, res) => {
   try {
-    const otherExpenses = await OtherExpense.find({ username: req.params.username });
-    res.json(otherExpenses);
+    const { username } = req.params;
+    const { month, year } = req.query;
+
+    let query = { username };
+    let expenses = await OtherExpense.find(query);
+
+    // ✅ Filter manually since date is string
+    if (month && year) {
+      expenses = expenses.filter((exp) => {
+        if (!exp.date) return false;
+        const [day, mon, yr] = exp.date.split("/").map(Number);
+        return mon === Number(month) && yr === Number(year);
+      });
+    }
+
+    res.json(expenses);
   } catch (err) {
     console.error("Get other expenses error:", err);
     res.status(500).json({ error: "Failed to fetch other expenses" });
   }
 };
+
 
 // Get All Users
 const getAllUsers = async (req, res) => {
