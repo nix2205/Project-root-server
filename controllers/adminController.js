@@ -150,6 +150,37 @@ const getUserInfo = async (req, res) => {
   }
 };
 
+const updateUsername = async (req, res) => {
+  try {
+    const { username } = req.params;   // old username
+    const { newUsername } = req.body;  // new username from frontend
+
+    if (!newUsername) {
+      return res.status(400).json({ error: "New username is required" });
+    }
+
+    // Check if username already exists
+    const existingUser = await User.findOne({ username: newUsername });
+    if (existingUser) {
+      return res.status(400).json({ error: "Username already taken" });
+    }
+
+    const user = await User.findOneAndUpdate(
+      { username },
+      { username: newUsername },
+      { new: true }
+    );
+
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    res.json({ message: "Username updated successfully", user });
+  } catch (err) {
+    console.error("Update username error:", err);
+    res.status(500).json({ error: "Failed to update username" });
+  }
+};
+
+
 // Edit User Info
 const editUser = async (req, res) => {
   try {
@@ -289,6 +320,36 @@ const resetPassword = async (req, res) => {
   }
 };
 
+
+// Get last reported expense date
+const getLastReportedDate = async (req, res) => {
+  try {
+    const { username } = req.params;
+    const user = await User.findOne({ username });
+    if (!user) return res.status(404).json({ error: "User not found" });
+
+    if (!user.expenses || user.expenses.length === 0) {
+      return res.json({ lastReported: null });
+    }
+
+    // Sort expenses by date (DD/MM/YYYY format)
+    const sortedExpenses = [...user.expenses].sort((a, b) => {
+      const [dayA, monA, yrA] = a.date.split("/").map(Number);
+      const [dayB, monB, yrB] = b.date.split("/").map(Number);
+      const dateA = new Date(yrA, monA - 1, dayA);
+      const dateB = new Date(yrB, monB - 1, dayB);
+      return dateB - dateA; // newest first
+    });
+
+    res.json({ lastReported: sortedExpenses[0].date });
+  } catch (err) {
+    console.error("Get last reported date error:", err);
+    res.status(500).json({ error: "Failed to fetch last reported date" });
+  }
+};
+
+
+
 module.exports = {
   editOtherExpense, // ✅ Export the new function
   deleteOtherExpense,
@@ -303,6 +364,8 @@ module.exports = {
   getAllUsers,
   resetPassword,
   getManagedUsers,
+  getLastReportedDate,
+  updateUsername,
 };
 
 
