@@ -23,6 +23,8 @@ router.delete("/other-expense/:id", adminController.deleteOtherExpense);
 router.delete("/user/:username", adminController.deleteUser);
 router.put("/other-expense/:id", adminController.editOtherExpense);
 router.get("/last-reported/:username", adminController.getLastReportedDate);
+router.put("/approve-expense/:username", adminController.approveExpense);
+router.put("/disapprove-expense/:username", adminController.approveExpense);
 
 
 module.exports = router;
