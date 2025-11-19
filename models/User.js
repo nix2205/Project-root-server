@@ -21,7 +21,7 @@ const expenseSchema = new mongoose.Schema({
 });
 
 const monthSummarySchema = new mongoose.Schema({
-  month: { type: String, required: true },   // e.g. "OCT-2025"
+  month: { type: String, required: true },   // e.g. "OCT"
   approved: { type: Boolean, default: false },
   total: { type: Number, default: 0 },       // store the grand total at submit time
   submittedBy: { type: String, default: null }, // username who submitted
