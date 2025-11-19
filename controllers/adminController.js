@@ -313,96 +313,81 @@ const getLastReportedDate = async (req, res) => {
 };
 
 
-// Approve Expense
-const approveExpense = async (req, res) => {
-  try {
-    const { username } = req.params;
-    const { month, year, total } = req.body;
-
-    if (!month || !year || total === undefined) {
-      return res.status(400).json({ error: "Month, year, and total are required" });
-    }
-
-    // Convert month number or name to 3-letter uppercase format
-    const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-    let formattedMonth;
-    if (typeof month === "number") {
-      formattedMonth = monthNames[month - 1];
-    } else if (typeof month === "string") {
-      const match = monthNames.find((m) => m.toLowerCase() === month.toLowerCase().slice(0, 3));
-      formattedMonth = match || month.toUpperCase().slice(0, 3);
-    }
-
-    const finalMonthKey = `${formattedMonth}`; // Example: "OCT-2025"
-
-    const user = await User.findOne({ username });
-    if (!user) return res.status(404).json({ error: "User not found" });
-
-    // Check if this month already exists
-    const existingMonthIndex = user.months.findIndex((m) => m.month === finalMonthKey);
-
-    if (existingMonthIndex !== -1) {
-      // Month already exists: update total (only if previously approved)
-      user.months[existingMonthIndex].total = total;
-      user.months[existingMonthIndex].approved = true;
-    } else {
-      // Month doesn't exist yet: add new entry
-      user.months.push({
-        month: finalMonthKey,
-        total,
-        approved: true,
-      });
-    }
-
-    await user.save();
-
-    res.json({
-      message: "Expense approved successfully",
-      months: user.months,
-    });
-  } catch (err) {
-    console.error("Approve expense error:", err);
-    res.status(500).json({ error: "Failed to approve expense" });
+const formatMonthKey = (month) => {
+  const monthNames = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+  if (typeof month === "number") return monthNames[month - 1];
+  if (typeof month === "string") {
+    const lower = month.toLowerCase();
+    const match = monthNames.find(m => m.toLowerCase() === lower.slice(0,3));
+    return (match || month.toUpperCase().slice(0,3));
   }
+  return null;
 };
 
-
-// Disapprove Expense
-const disapproveExpense = async (req, res) => {
+// adminApproveMonth
+const adminApproveMonth = async (req, res) => {
   try {
     const { username } = req.params;
-    const { month, year } = req.body;
+    const { month } = req.body;
+    if (!month) return res.status(400).json({ error: "Month required" });
 
-    if (!month || !year) {
-      return res.status(400).json({ error: "Month and year are required" });
-    }
+    const formattedMonth = formatMonthKey(month);
+    if (!formattedMonth) return res.status(400).json({ error: "Invalid month" });
 
-    const monthNames = ["JAN", "FEB", "MAR", "APR", "MAY", "JUN", "JUL", "AUG", "SEP", "OCT", "NOV", "DEC"];
-    let formattedMonth;
-    if (typeof month === "number") {
-      formattedMonth = monthNames[month - 1];
-    } else if (typeof month === "string") {
-      const match = monthNames.find((m) => m.toLowerCase() === month.toLowerCase().slice(0, 3));
-      formattedMonth = match || month.toUpperCase().slice(0, 3);
-    }
-
-    const finalMonthKey = `${formattedMonth}`;
+    const finalMonthKey = formattedMonth; // e.g. "NOV"
 
     const user = await User.findOne({ username });
     if (!user) return res.status(404).json({ error: "User not found" });
 
-    // Remove the month entry entirely
-    user.months = user.months.filter((m) => m.month !== finalMonthKey);
+    const idx = user.months.findIndex(m => m.month === finalMonthKey);
+    if (idx === -1) return res.status(404).json({ error: "Month entry not found" });
+
+    // --- compute current normal expenses total from user's expenses for that month ---
+    const monthNames = ["JAN","FEB","MAR","APR","MAY","JUN","JUL","AUG","SEP","OCT","NOV","DEC"];
+    const normalExpensesForMonth = (user.expenses || []).filter(exp => {
+      if (!exp || !exp.date) return false;
+      const parts = exp.date.split("/");
+      if (parts.length < 2) return false;
+      const mon = Number(parts[1]);
+      if (Number.isNaN(mon) || mon < 1 || mon > 12) return false;
+      const monName = monthNames[mon - 1];
+      return monName === finalMonthKey;
+    });
+    const normalTotal = normalExpensesForMonth.reduce((sum, e) => sum + (Number(e.total) || 0), 0);
+
+    // --- compute other expenses total for that user & month from OtherExpense collection ---
+    // other expense date is also "DD/MM/YYYY"
+    const otherExpenses = await OtherExpense.find({ username }).lean();
+    const otherTotal = (otherExpenses || []).reduce((sum, e) => {
+      if (!e || !e.date) return sum;
+      const parts = e.date.split("/");
+      if (parts.length < 2) return sum;
+      const mon = Number(parts[1]);
+      if (Number.isNaN(mon) || mon < 1 || mon > 12) return sum;
+      const monName = monthNames[mon - 1];
+      if (monName !== finalMonthKey) return sum;
+      return sum + (Number(e.total) || 0);
+    }, 0);
+
+    // combined grand total at approval time
+    const computedTotal = normalTotal + otherTotal;
+
+    // Update month entry: set total to computedTotal, mark approved and set approvedAt
+    user.months[idx].total = computedTotal;
+    user.months[idx].approved = true;
+    user.months[idx].approvedAt = new Date();
 
     await user.save();
 
-    res.json({
-      message: "Expense disapproved successfully",
-      months: user.months,
+    return res.json({
+      message: "Month approved",
+      month: user.months[idx],
+      computedTotal,
+      breakdown: { normalTotal, otherTotal },
     });
   } catch (err) {
-    console.error("Disapprove expense error:", err);
-    res.status(500).json({ error: "Failed to disapprove expense" });
+    console.error("adminApproveMonth error:", err);
+    return res.status(500).json({ error: "Failed to approve month" });
   }
 };
 
@@ -424,6 +409,5 @@ module.exports = {
   getManagedUsers,
   getLastReportedDate,
   updateUsername,
-  approveExpense,
-  disapproveExpense,
+  adminApproveMonth,
 };

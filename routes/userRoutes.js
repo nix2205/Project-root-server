@@ -9,7 +9,8 @@ const {
   addExpense,
   getMyExpenses,
   editExpenseIsSpecial,
-  resetPassword
+  resetPassword,
+  userSubmitMonth
 } = require("../controllers/userController");
 const { addOtherExpenses, getMyOtherExpenses } = require("../controllers/otherExpenseController");
 
@@ -27,6 +28,7 @@ router.get("/expenses", verifyToken, getMyExpenses);
 router.post("/other-expenses", verifyToken, addOtherExpenses);
 router.get("/other-expenses", verifyToken, getMyOtherExpenses);
 router.put("/expenses/:expenseId", verifyToken, editExpenseIsSpecial);
+router.post("/submit-month", verifyToken, userSubmitMonth);
 
 
 module.exports = router;
