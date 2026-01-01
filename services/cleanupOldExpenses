@@ -1,0 +1,58 @@
+const User = require("../models/User");
+const OtherExpense = require("../models/OtherExpense");
+const { getMonthYearOffset } = require("../utils/dateUtils");
+
+async function cleanupOldExpenses() {
+  const now = new Date();
+
+  // 🔥 month to DELETE = current month - 3
+  const { monthIndex, monthName, year } = getMonthYearOffset(now, -3);
+
+  // Date range for deletion
+  const startDate = new Date(year, monthIndex, 1);
+  const endDate = new Date(year, monthIndex + 1, 0);
+
+  console.log(
+    `🧹 Cleaning data for ${monthName} ${year} (${startDate.toDateString()} → ${endDate.toDateString()})`
+  );
+
+  const users = await User.find();
+
+  for (const user of users) {
+
+    // 1️⃣ DELETE EXPENSES ARRAY ENTRIES
+    user.expenses = user.expenses.filter(exp => {
+      if (!exp.date) return true;
+
+      const [dd, mm, yyyy] = exp.date.split("/").map(Number);
+      const expDate = new Date(yyyy, mm - 1, dd);
+
+      return !(expDate >= startDate && expDate <= endDate);
+    });
+
+    // 2️⃣ DELETE MONTH SUMMARY SAFELY (using submittedAt year)
+    user.months = user.months.filter(m => {
+      if (!m.submittedAt) return true;
+
+      const mDate = new Date(m.submittedAt);
+
+      return !(
+        m.month === monthName &&
+        mDate.getFullYear() === year
+      );
+    });
+
+    await user.save({ validateBeforeSave: false });
+  }
+
+  // 3️⃣ DELETE OTHER EXPENSE COLLECTION
+  await OtherExpense.deleteMany({
+    date: {
+      $regex: new RegExp(`^\\d{2}/${String(monthIndex + 1).padStart(2, "0")}/${year}$`)
+    }
+  });
+
+  console.log("✅ Old expense cleanup completed safely.");
+}
+
+module.exports = cleanupOldExpenses;
